@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register | FlowDesk</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="auth-page">
+    <div class="auth-card">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h2>⚡ FlowDesk</h2>
+            <p style="color: var(--text-muted);">Create your account</p>
+        </div>
+        
+        <% if (typeof error !== 'undefined' && error && error.length) { %>
+            <div style="background: rgba(220,38,38,0.1); border-left: 4px solid var(--danger); padding: 12px; margin-bottom: 16px; border-radius: 4px; color: var(--danger); font-size: 14px;">
+                <%= error %>
+            </div>
+        <% } %>
+
+        <form action="/auth/register" method="POST" class="standard-form" id="registerForm">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" required class="form-control" placeholder="Jane Doe">
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required class="form-control" placeholder="name@company.com">
+            </div>
+            
+            <div style="display: flex; gap: 16px; margin-bottom: 20px;">
+                <div style="flex: 1;">
+                    <label for="department" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-secondary);">Department</label>
+                    <select id="department" name="department" class="form-control" required>
+                        <option value="">Select Dept</option>
+                        <option value="Engineering">Engineering</option>
+                        <option value="Product">Product</option>
+                        <option value="Design">Design</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="HR">HR</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label for="role" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-secondary);">Role</label>
+                    <select id="role" name="role" class="form-control" required>
+                        <option value="employee">Employee</option>
+                        <option value="manager">Manager</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required class="form-control" placeholder="••••••••">
+            </div>
+            
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required class="form-control" placeholder="••••••••">
+                <small id="passwordMatchError" style="color: var(--danger); display: none; margin-top: 4px;">Passwords do not match.</small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account</button>
+        </form>
+        
+        <div style="text-align: center; margin-top: 24px; font-size: 14px;">
+            Already have an account? <a href="/auth/login">Sign in</a>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('registerForm');
+        const pass = document.getElementById('password');
+        const confirmPass = document.getElementById('confirmPassword');
+        const matchError = document.getElementById('passwordMatchError');
+
+        form.addEventListener('submit', function(e) {
+            if (pass.value !== confirmPass.value) {
+                e.preventDefault();
+                matchError.style.display = 'block';
+                confirmPass.style.borderColor = 'var(--danger)';
+            } else {
+                matchError.style.display = 'none';
+                confirmPass.style.borderColor = 'var(--border)';
+            }
+        });
+    </script>
+</body>
+</html>

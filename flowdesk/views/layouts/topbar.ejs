@@ -1,0 +1,14 @@
+<div class="topbar">
+    <h1 class="topbar-title"><%= typeof pageTitle !== 'undefined' ? pageTitle : 'FlowDesk' %></h1>
+    <div class="topbar-actions">
+        <button class="theme-toggle" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-primary); transition: transform 0.2s;">
+            <%= typeof theme !== 'undefined' && theme === 'dark' ? '☀️' : '🌙' %>
+        </button>
+        <button class="bell-btn" style="background: none; border: none; font-size: 20px; cursor: pointer; position: relative; margin-right: 8px;">
+            🔔
+        </button>
+        <div class="avatar" style="width: 36px; height: 36px; font-size: 14px; cursor: pointer; box-shadow: var(--shadow);">
+            <%= typeof user !== 'undefined' && user && user.name ? user.name.charAt(0) : 'U' %>
+        </div>
+    </div>
+</div>

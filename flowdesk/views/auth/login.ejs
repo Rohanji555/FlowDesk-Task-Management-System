@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | FlowDesk</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="auth-page">
+    <div class="auth-card">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h2>⚡ FlowDesk</h2>
+            <p style="color: var(--text-muted);">Manage work. Ship faster.</p>
+        </div>
+        
+        <% if (typeof error !== 'undefined' && error && error.length) { %>
+            <div style="background: rgba(220,38,38,0.1); border-left: 4px solid var(--danger); padding: 12px; margin-bottom: 16px; border-radius: 4px; color: var(--danger); font-size: 14px;">
+                <%= error %>
+            </div>
+        <% } %>
+
+        <form action="/auth/login" method="POST" class="standard-form">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required class="form-control" placeholder="name@company.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div style="position: relative;">
+                    <input type="password" id="password" name="password" required class="form-control" placeholder="••••••••">
+                    <button type="button" onclick="togglePassword()" style="position: absolute; right: 10px; top: 10px; background: none; border: none; cursor: pointer; color: var(--text-muted);">
+                        👁️
+                    </button>
+                </div>
+            </div>
+            
+            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; margin: 0; color: var(--text-secondary); cursor: pointer;">
+                    <input type="checkbox" name="remember" id="remember">
+                    Remember me
+                </label>
+                <a href="/auth/forgot-password" style="font-size: 14px;">Forgot password?</a>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
+        </form>
+        
+        <div style="text-align: center; margin-top: 24px; font-size: 14px;">
+            Don't have an account? <a href="/auth/register">Create one</a>
+        </div>
+        
+        <div style="margin-top: 32px; padding: 16px; background: #F8FAFC; border-radius: var(--radius); border: 1px dashed var(--border); font-size: 13px; color: var(--text-secondary);">
+            <strong style="color: var(--text-primary);">Demo Credentials:</strong><br><br>
+            <b>Admin:</b> admin@flowdesk.com / Admin@123<br>
+            <b>Manager:</b> manager@flowdesk.com / Manager@123<br>
+            <b>Employee:</b> employee@flowdesk.com / Employee@123
+        </div>
+    </div>
+    
+    <script>
+        function togglePassword() {
+            const input = document.getElementById('password');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+    </script>
+</body>
+</html>

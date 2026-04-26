@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | FlowDesk</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="<%= typeof theme !== 'undefined' && theme === 'dark' ? 'dark-mode' : '' %>" data-user-id="<%= typeof user !== 'undefined' && user ? user._id : '' %>">
+<%
+  const sidebarLinks = [
+    { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
+    { href: '/tasks', label: 'Tasks', icon: 'check-square' },
+    { href: '/projects', label: 'Projects', icon: 'folder' }
+  ]
+%>
+    <div class="app-layout">
+        <%- include('../layouts/sidebar', { sidebarLinks, user, currentPath: '/profile' }) %>
+        <div class="main-content">
+            <%- include('../layouts/topbar', { title: 'My Profile', user }) %>
+            <%- include('../partials/flash') %>
+
+            <div style="max-width: 600px; margin: 0 auto; padding-top: 24px;">
+                <div style="background: var(--card-bg); padding: 32px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; gap: 24px; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border);">
+                        <div class="avatar" style="width: 80px; height: 80px; font-size: 32px;">
+                            <%= user ? user.name.charAt(0) : 'U' %>
+                        </div>
+                        <div>
+                            <h2 style="margin-bottom: 4px; font-size: 24px;"><%= user.name %></h2>
+                            <div style="color: var(--text-muted);"><%= user.email %></div>
+                            <div class="badge badge-primary" style="margin-top: 8px;"><%= user.role %></div>
+                        </div>
+                    </div>
+                    
+                    <form action="/users/me?_method=PUT" method="POST" class="standard-form">
+                        <div class="form-group">
+                            <label for="name">Full Name</label>
+                            <input type="text" id="name" name="name" value="<%= user.name %>" required class="form-control">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="department">Department</label>
+                            <select id="department" name="department" class="form-control" required>
+                                <option value="Engineering" <%= user.department === 'Engineering' ? 'selected' : '' %>>Engineering</option>
+                                <option value="Product" <%= user.department === 'Product' ? 'selected' : '' %>>Product</option>
+                                <option value="Design" <%= user.department === 'Design' ? 'selected' : '' %>>Design</option>
+                                <option value="Marketing" <%= user.department === 'Marketing' ? 'selected' : '' %>>Marketing</option>
+                                <option value="HR" <%= user.department === 'HR' ? 'selected' : '' %>>HR</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Save Changes</button>
+                    </form>
+                </div>
+                
+                <div style="background: var(--card-bg); padding: 32px; border-radius: var(--radius); box-shadow: var(--shadow);">
+                    <h3 style="margin-bottom: 16px; font-size: 16px;">Update Avatar</h3>
+                    <form action="/users/me/avatar" method="POST" enctype="multipart/form-data" style="display: flex; gap: 12px; align-items: flex-end;">
+                        <div class="form-group" style="flex: 1; margin: 0;">
+                            <input type="file" name="avatar" class="form-control" required accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-secondary">Upload</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/js/socket-client.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>

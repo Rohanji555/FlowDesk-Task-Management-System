@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'Dashboard' %> | FlowDesk</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="<%= typeof theme !== 'undefined' && theme === 'dark' ? 'dark-mode' : '' %>" data-project-id="<%= typeof project !== 'undefined' && project ? project._id : '' %>" data-task-id="<%= typeof task !== 'undefined' && task ? task._id : '' %>" data-user-id="<%= typeof user !== 'undefined' && user ? user._id : '' %>">
+<%
+  const sidebarLinks = [
+    { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
+    { href: '/tasks', label: 'Tasks', icon: 'check-square' },
+    { href: '/projects', label: 'Projects', icon: 'folder' }
+  ]
+%>
+    <div class="app-layout">
+        <%- include('../layouts/sidebar', { sidebarLinks, user, currentPath: typeof currentPath !== 'undefined' ? currentPath : '/' }) %>
+        
+        <div class="main-content">
+            <%- include('../layouts/topbar', { title: typeof pageTitle !== 'undefined' ? pageTitle : 'FlowDesk', user }) %>
+            <%- include('../partials/flash') %>
+
+            <% if ((typeof stats !== 'undefined' && stats.totalTasks === 0) || (typeof recentTasks !== 'undefined' && recentTasks.length === 0)) { %>
+                <div style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: #FFF; padding: 32px; border-radius: var(--radius); margin-bottom: 32px; box-shadow: var(--shadow);">
+                    <h2 style="margin-bottom: 8px;">Welcome to FlowDesk, <%= user ? user.name : 'there' %>! 👋</h2>
+                    <p style="margin-bottom: 24px; opacity: 0.9;">You're all set up. Start managing your work and shipping faster.</p>
+                    <div style="display: flex; gap: 16px;">
+                        <a href="/tasks/new" class="btn" style="background: #FFF; color: var(--primary);">+ Create Task</a>
+                        <a href="/projects/new" class="btn" style="background: rgba(255,255,255,0.2); color: #FFF; border: 1px solid rgba(255,255,255,0.4);">New Project</a>
+                    </div>
+                </div>
+            <% } %>
+
+            <div class="stats-grid">
+                <div class="stat-card" style="border-left-color: var(--primary);">
+                    <div style="font-size: 24px; background: rgba(79, 70, 229, 0.1); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">📋</div>
+                    <div class="stat-card-content">
+                        <h3>Total Tasks</h3>
+                        <div class="number"><%= typeof stats !== 'undefined' ? stats.totalTasks : 0 %></div>
+                        <div style="font-size: 12px; color: var(--secondary);">↑ 12% from last month</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card" style="border-left-color: var(--warning);">
+                    <div style="font-size: 24px; background: rgba(217, 119, 6, 0.1); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">⏱️</div>
+                    <div class="stat-card-content">
+                        <h3>Due Today</h3>
+                        <div class="number"><%= typeof stats !== 'undefined' ? stats.dueToday : 0 %></div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Needs attention</div>
+                    </div>
+                </div>
+
+                <div class="stat-card" style="border-left-color: var(--danger);">
+                    <div style="font-size: 24px; background: rgba(220, 38, 38, 0.1); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">⚠️</div>
+                    <div class="stat-card-content">
+                        <h3>Overdue</h3>
+                        <div class="number"><%= typeof stats !== 'undefined' ? stats.overdue : 0 %></div>
+                        <div style="font-size: 12px; color: var(--danger);">Requires action</div>
+                    </div>
+                </div>
+
+                <div class="stat-card" style="border-left-color: var(--secondary);">
+                    <div style="font-size: 24px; background: rgba(5, 150, 105, 0.1); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">✅</div>
+                    <div class="stat-card-content">
+                        <h3>Completed This Week</h3>
+                        <div class="number"><%= typeof stats !== 'undefined' ? stats.completed : 0 %></div>
+                        <div style="font-size: 12px; color: var(--secondary);">Great job!</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="activity-feed">
+                    <h2 style="margin-bottom: 24px; font-size: 18px;">Recent Activity</h2>
+                    <% if (typeof recentTasks !== 'undefined' && recentTasks.length > 0) { %>
+                        <% recentTasks.forEach(task => { %>
+                            <a href="/tasks/<%= task._id %>" class="activity-item" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                                <div class="badge badge-<%= task.status === 'done' ? 'success' : (task.status === 'in-progress' ? 'warning' : 'primary') %>" style="width: 80px; text-align: center;">
+                                    <%= task.status %>
+                                </div>
+                                <div style="flex: 1; margin-left: 12px;">
+                                    <div style="font-weight: 500;"><%= task.title %></div>
+                                    <div style="font-size: 12px; color: var(--text-muted);">
+                                        <%= task.project ? task.project.name : 'No Project' %>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div class="activity-time">
+                                        <script>
+                                            document.write(
+                                                (function timeAgo(date) {
+                                                    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+                                                    let interval = seconds / 31536000;
+                                                    if (interval > 1) return Math.floor(interval) + " years ago";
+                                                    interval = seconds / 2592000;
+                                                    if (interval > 1) return Math.floor(interval) + " months ago";
+                                                    interval = seconds / 86400;
+                                                    if (interval > 1) return Math.floor(interval) + " days ago";
+                                                    interval = seconds / 3600;
+                                                    if (interval > 1) return Math.floor(interval) + " hours ago";
+                                                    interval = seconds / 60;
+                                                    if (interval > 1) return Math.floor(interval) + " minutes ago";
+                                                    return Math.floor(seconds) + " seconds ago";
+                                                })("<%= task.updatedAt || task.createdAt %>")
+                                            );
+                                        </script>
+                                    </div>
+                                    <% if (task.assignedTo) { %>
+                                        <div class="avatar" style="width: 28px; height: 28px; font-size: 12px;" title="<%= task.assignedTo.name %>">
+                                            <%= task.assignedTo.name.charAt(0) %>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </a>
+                        <% }) %>
+                    <% } else { %>
+                        <div class="empty-state">No recent activity</div>
+                    <% } %>
+                </div>
+
+                <div>
+                    <div class="my-tasks-widget">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                            <h2 style="font-size: 18px; margin: 0;">My Tasks</h2>
+                            <a href="/tasks?assignedTo=<%= user._id %>" style="font-size: 14px; color: var(--primary);">View all</a>
+                        </div>
+                        
+                        <% if (typeof myTasks !== 'undefined' && myTasks.length > 0) { %>
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                <% myTasks.forEach(task => { %>
+                                    <a href="/tasks/<%= task._id %>" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit;">
+                                        <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--<%= task.priority === 'critical' ? 'danger' : (task.priority === 'high' ? 'warning' : (task.priority === 'low' ? 'secondary' : 'primary')) %>);"></div>
+                                        <div style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 500;">
+                                            <%= task.title %>
+                                        </div>
+                                        <div style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">
+                                            <%= task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date' %>
+                                        </div>
+                                    </a>
+                                <% }) %>
+                            </div>
+                        <% } else { %>
+                            <div class="empty-state" style="padding: 24px 0;">You're all caught up!</div>
+                        <% } %>
+                    </div>
+                    
+                    <div style="margin-top: 32px; background: var(--card-bg); padding: 24px; border-radius: var(--radius); box-shadow: var(--shadow);">
+                        <h2 style="font-size: 18px; margin-bottom: 16px;">Team Online</h2>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                            <div style="position: relative;" title="Alice">
+                                <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">A</div>
+                                <div class="online-dot" style="position: absolute; bottom: 0; right: 0;"></div>
+                            </div>
+                            <div style="position: relative;" title="Bob">
+                                <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">B</div>
+                                <div class="online-dot" style="position: absolute; bottom: 0; right: 0;"></div>
+                            </div>
+                            <div style="position: relative;" title="Charlie">
+                                <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">C</div>
+                                <div class="online-dot" style="position: absolute; bottom: 0; right: 0;"></div>
+                            </div>
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-muted);">3 members online</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/js/socket-client.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<%# Concept: Server-side rendering, EJS template engine, Dynamic HTML %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof appName !== 'undefined' ? appName : 'FlowDesk' %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="<%= typeof theme !== 'undefined' && theme === 'dark' ? 'dark-mode' : '' %>">
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>FlowDesk</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><a href="/dashboard" class="<%= typeof currentPath !== 'undefined' && currentPath === '/dashboard' ? 'active' : '' %>">Dashboard</a></li>
+                    <li><a href="/tasks" class="<%= typeof currentPath !== 'undefined' && currentPath.startsWith('/tasks') ? 'active' : '' %>">Tasks</a></li>
+                    <li><a href="/projects" class="<%= typeof currentPath !== 'undefined' && currentPath.startsWith('/projects') ? 'active' : '' %>">Projects</a></li>
+                    <li><a href="/team">Team</a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-projects">
+                <!-- Project list could go here dynamically -->
+            </div>
+            <% if (typeof user !== 'undefined' && user) { %>
+            <div class="sidebar-user">
+                <div class="user-avatar-wrapper">
+                    <img src="/uploads/<%= user.avatar %>" alt="Avatar" class="avatar" onerror="this.src='/images/default-avatar.png'">
+                    <span class="online-indicator"></span>
+                </div>
+                <div class="user-info">
+                    <span class="user-name"><%= user.name %></span>
+                    <a href="/auth/logout" class="logout-btn">Logout</a>
+                </div>
+            </div>
+            <% } %>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-wrapper">
+            <!-- Topbar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <h1 class="page-title"><%= typeof pageTitle !== 'undefined' ? pageTitle : 'Dashboard' %></h1>
+                </div>
+                <div class="topbar-right">
+                    <button class="icon-btn bell-btn" aria-label="Notifications">
+                        🔔
+                    </button>
+                    <a href="/settings/theme?mode=<%= typeof theme !== 'undefined' && theme === 'dark' ? 'light' : 'dark' %>" class="icon-btn theme-toggle" aria-label="Toggle Theme">
+                        <%= typeof theme !== 'undefined' && theme === 'dark' ? '☀️' : '🌙' %>
+                    </a>
+                    <% if (typeof user !== 'undefined' && user) { %>
+                    <div class="user-dropdown">
+                        <img src="/uploads/<%= user.avatar %>" alt="Avatar" class="avatar-small" onerror="this.src='/images/default-avatar.png'">
+                    </div>
+                    <% } %>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <%- include('../partials/flash') %>
+                <%- body %>
+            </main>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/socket-client.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>

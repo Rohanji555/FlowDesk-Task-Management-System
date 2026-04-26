@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= project.name %> | FlowDesk</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="<%= typeof theme !== 'undefined' && theme === 'dark' ? 'dark-mode' : '' %>" data-project-id="<%= typeof project !== 'undefined' && project ? project._id : '' %>" data-task-id="<%= typeof task !== 'undefined' && task ? task._id : '' %>" data-user-id="<%= typeof user !== 'undefined' && user ? user._id : '' %>">
+<%
+  const sidebarLinks = [
+    { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
+    { href: '/tasks', label: 'Tasks', icon: 'check-square' },
+    { href: '/projects', label: 'Projects', icon: 'folder' }
+  ]
+%>
+    <div class="app-layout">
+        <%- include('../layouts/sidebar', { sidebarLinks, user, currentPath: typeof currentPath !== 'undefined' ? currentPath : '/' }) %>
+        <div class="main-content">
+            <%- include('../layouts/topbar', { title: typeof pageTitle !== 'undefined' ? pageTitle : 'FlowDesk', user }) %>
+            <%- include('../partials/flash') %>
+
+            <!-- Banner -->
+            <div style="background: <%= project.color || 'var(--primary)' %>; border-radius: var(--radius) var(--radius) 0 0; height: 120px; position: relative;">
+                <div style="position: absolute; bottom: -40px; left: 32px; background: var(--card-bg); padding: 16px 32px; border-radius: var(--radius); box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 16px;">
+                    <h2 style="margin: 0; font-size: 24px; color: var(--text-primary);"><%= project.name %></h2>
+                    <div class="badge badge-<%= project.status === 'completed' ? 'success' : (project.status === 'active' ? 'primary' : 'warning') %>" style="border: 1px solid currentColor;"><%= project.status || 'active' %></div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 64px; display: grid; grid-template-columns: 2fr 1fr; gap: 32px;">
+                <!-- Main Area -->
+                <div>
+                    <div style="background: var(--card-bg); padding: 32px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 32px;">
+                        <h3 style="margin-bottom: 16px; font-size: 16px;">Description</h3>
+                        <p style="color: var(--text-secondary); line-height: 1.6;"><%= project.description || 'No description provided.' %></p>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h2 style="font-size: 20px;">Project Tasks</h2>
+                        <a href="/tasks/new?project=<%= project._id %>" class="btn btn-primary btn-sm">+ Create Task in this Project</a>
+                    </div>
+                    
+                    <div style="background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;">
+                        <% if (typeof tasks !== 'undefined' && tasks.length > 0) { %>
+                            <div style="display: flex; flex-direction: column;">
+                                <% tasks.forEach((task, index) => { %>
+                                    <a href="/tasks/<%= task._id %>" style="display: flex; align-items: center; padding: 16px; text-decoration: none; color: inherit; border-bottom: <%= index !== tasks.length - 1 ? '1px solid var(--border)' : 'none' %>; transition: background 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.02)';" onmouseout="this.style.background='transparent';">
+                                        <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--<%= task.priority === 'critical' ? 'danger' : (task.priority === 'high' ? 'warning' : 'primary') %>); margin-right: 16px;"></div>
+                                        <div style="flex: 1; font-weight: 500;"><%= task.title %></div>
+                                        <div style="margin-right: 24px; color: var(--text-muted); font-size: 14px;"><%= task.assignedTo ? task.assignedTo.name : 'Unassigned' %></div>
+                                        <div class="badge badge-<%= task.status === 'done' ? 'success' : (task.status === 'in-progress' ? 'warning' : 'primary') %>"><%= task.status %></div>
+                                    </a>
+                                <% }) %>
+                            </div>
+                        <% } else { %>
+                            <div style="padding: 48px; text-align: center; color: var(--text-muted);">No tasks in this project yet.</div>
+                        <% } %>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar -->
+                <div>
+                    <div style="background: var(--card-bg); padding: 24px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 24px;">
+                        <h3 style="margin-bottom: 24px; font-size: 16px;">Details</h3>
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; font-weight: 600;">Deadline</label>
+                                <div style="color: var(--text-primary);"><%= project.deadline ? new Date(project.deadline).toLocaleDateString() : 'No deadline' %></div>
+                            </div>
+                            <% 
+                                let manager = project.members ? project.members.find(m => m.role === 'manager') : null;
+                            %>
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; font-weight: 600;">Manager</label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;"><%= manager && manager.user ? manager.user.name.charAt(0) : '?' %></div>
+                                    <span><%= manager && manager.user ? manager.user.name : 'Unassigned' %></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: var(--card-bg); padding: 24px; border-radius: var(--radius); box-shadow: var(--shadow);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                            <h3 style="margin: 0; font-size: 16px;">Team Members</h3>
+                            <% if (user && (user.role === 'admin' || user.role === 'manager')) { %>
+                                <button onclick="document.getElementById('addMemberForm').style.display='block'" style="background: none; border: none; color: var(--primary); font-size: 14px; font-weight: 500; cursor: pointer;">+ Add</button>
+                            <% } %>
+                        </div>
+
+                        <!-- Add Member Form (Hidden) -->
+                        <form id="addMemberForm" action="/projects/<%= project._id %>/members" method="POST" style="display: none; background: #F8FAFC; padding: 16px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 24px;">
+                            <div class="form-group" style="margin-bottom: 12px;">
+                                <label style="font-size: 12px;">User ID</label>
+                                <input type="text" name="userId" class="form-control" required placeholder="User MongoDB ID">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label style="font-size: 12px;">Role</label>
+                                <select name="role" class="form-control">
+                                    <option value="member">Member</option>
+                                    <option value="manager">Manager</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="submit" class="btn btn-primary btn-sm" style="flex: 1;">Add</button>
+                                <button type="button" class="btn btn-secondary btn-sm" style="flex: 1;" onclick="document.getElementById('addMemberForm').style.display='none'">Cancel</button>
+                            </div>
+                        </form>
+
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <% if (project.members && project.members.length > 0) { %>
+                                <% project.members.forEach(member => { %>
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;"><%= member.user ? member.user.name.charAt(0) : 'U' %></div>
+                                        <div>
+                                            <div style="font-weight: 500; font-size: 14px;"><%= member.user ? member.user.name : 'Unknown User' %></div>
+                                            <div style="font-size: 12px; color: var(--text-muted);"><%= member.role %></div>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <div style="color: var(--text-muted); font-size: 14px;">No members yet.</div>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/js/socket-client.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>

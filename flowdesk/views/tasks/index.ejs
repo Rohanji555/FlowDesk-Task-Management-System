@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tasks | FlowDesk</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="<%= typeof theme !== 'undefined' && theme === 'dark' ? 'dark-mode' : '' %>" data-project-id="<%= typeof project !== 'undefined' && project ? project._id : '' %>" data-task-id="<%= typeof task !== 'undefined' && task ? task._id : '' %>" data-user-id="<%= typeof user !== 'undefined' && user ? user._id : '' %>">
+<%
+  const sidebarLinks = [
+    { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
+    { href: '/tasks', label: 'Tasks', icon: 'check-square' },
+    { href: '/projects', label: 'Projects', icon: 'folder' }
+  ]
+%>
+    <div class="app-layout">
+        <%- include('../layouts/sidebar', { sidebarLinks, user, currentPath: typeof currentPath !== 'undefined' ? currentPath : '/' }) %>
+        <div class="main-content">
+            <%- include('../layouts/topbar', { title: typeof pageTitle !== 'undefined' ? pageTitle : 'FlowDesk', user }) %>
+            <%- include('../partials/flash') %>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2 style="font-size: 24px;">Tasks</h2>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <div style="display: flex; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden;">
+                        <button id="kanbanViewBtn" class="active" style="padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-right: 1px solid var(--border); color: var(--text-primary);">Kanban</button>
+                        <button id="listViewBtn" style="padding: 8px 16px; border: none; background: transparent; cursor: pointer; color: var(--text-primary);">List</button>
+                    </div>
+                    <a href="/tasks/new" class="btn btn-primary">+ New Task</a>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <form action="/tasks" method="GET" style="display: flex; gap: 16px; margin-bottom: 32px; background: var(--card-bg); padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow);">
+                <select name="project" class="form-control" style="width: auto;">
+                    <option value="">All Projects</option>
+                    <% if (typeof projects !== 'undefined') { %>
+                        <% projects.forEach(p => { %>
+                            <option value="<%= p._id %>" <%= typeof query !== 'undefined' && query.project === p._id.toString() ? 'selected' : '' %>><%= p.name %></option>
+                        <% }) %>
+                    <% } %>
+                </select>
+                <select name="priority" class="form-control" style="width: auto;">
+                    <option value="">All Priorities</option>
+                    <option value="critical" <%= typeof query !== 'undefined' && query.priority === 'critical' ? 'selected' : '' %>>Critical</option>
+                    <option value="high" <%= typeof query !== 'undefined' && query.priority === 'high' ? 'selected' : '' %>>High</option>
+                    <option value="medium" <%= typeof query !== 'undefined' && query.priority === 'medium' ? 'selected' : '' %>>Medium</option>
+                    <option value="low" <%= typeof query !== 'undefined' && query.priority === 'low' ? 'selected' : '' %>>Low</option>
+                </select>
+                <input type="text" name="search" placeholder="Search tasks..." class="form-control" style="flex: 1;" value="<%= typeof query !== 'undefined' ? query.search || '' : '' %>">
+                <button type="submit" class="btn btn-secondary">Filter</button>
+            </form>
+
+            <!-- Kanban View -->
+            <div id="kanbanBoard" class="kanban-board">
+                <% const statuses = ['todo', 'in-progress', 'review', 'done']; %>
+                <% const statusLabels = { 'todo': 'To Do', 'in-progress': 'In Progress', 'review': 'Review', 'done': 'Done' }; %>
+                
+                <% statuses.forEach(status => { %>
+                    <div class="kanban-column" data-status="<%= status %>">
+                        <div class="kanban-column-header">
+                            <%= statusLabels[status] %>
+                            <span class="badge badge-secondary" style="background: #E2E8F0; color: #1E293B;"><%= tasks.filter(t => t.status === status).length %></span>
+                        </div>
+                        <div class="kanban-column-body column-content">
+                            <% const columnTasks = tasks.filter(t => t.status === status); %>
+                            <% if (columnTasks.length > 0) { %>
+                                <% columnTasks.forEach(task => { %>
+                                    <%- include('../partials/taskCard', { task }) %>
+                                <% }) %>
+                            <% } else { %>
+                                <div style="border: 2px dashed var(--border); border-radius: var(--radius); padding: 32px; text-align: center; color: var(--text-muted); font-size: 14px;">
+                                    Drop tasks here
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+
+            <!-- List View -->
+            <div id="listView" style="display: none;">
+                <div style="background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.02);">
+                                <th style="padding: 16px;">Task</th>
+                                <th style="padding: 16px;">Project</th>
+                                <th style="padding: 16px;">Assignee</th>
+                                <th style="padding: 16px;">Due Date</th>
+                                <th style="padding: 16px;">Status</th>
+                                <th style="padding: 16px; text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (tasks.length > 0) { %>
+                                <% tasks.forEach(task => { %>
+                                    <% const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done'; %>
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <td style="padding: 16px;">
+                                            <div style="display: flex; align-items: center; gap: 12px;">
+                                                <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--<%= task.priority === 'critical' ? 'danger' : (task.priority === 'high' ? 'warning' : 'primary') %>);"></div>
+                                                <a href="/tasks/<%= task._id %>" style="font-weight: 500; color: var(--text-primary);"><%= task.title %></a>
+                                            </div>
+                                        </td>
+                                        <td style="padding: 16px; color: var(--text-muted); font-size: 14px;">
+                                            <%= task.project ? task.project.name : '-' %>
+                                        </td>
+                                        <td style="padding: 16px;">
+                                            <% if (task.assignedTo) { %>
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <div class="avatar" style="width: 28px; height: 28px; font-size: 12px;" title="<%= task.assignedTo.name %>"><%= task.assignedTo.name.charAt(0) %></div>
+                                                    <span style="font-size: 14px;"><%= task.assignedTo.name %></span>
+                                                </div>
+                                            <% } else { %>
+                                                <span style="color: var(--text-muted); font-size: 14px;">Unassigned</span>
+                                            <% } %>
+                                        </td>
+                                        <td style="padding: 16px; font-size: 14px; color: <%= isOverdue ? 'var(--danger)' : 'var(--text-primary)' %>; font-weight: <%= isOverdue ? 'bold' : 'normal' %>;">
+                                            <%= task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-' %>
+                                        </td>
+                                        <td style="padding: 16px;">
+                                            <div class="badge badge-<%= task.status === 'done' ? 'success' : (task.status === 'in-progress' ? 'warning' : 'primary') %>"><%= task.status %></div>
+                                        </td>
+                                        <td style="padding: 16px; text-align: right;">
+                                            <a href="/tasks/<%= task._id %>/edit" class="btn btn-secondary btn-sm" style="margin-right: 8px;">Edit</a>
+                                            <form action="/tasks/<%= task._id %>?_method=DELETE" method="POST" style="display: inline;">
+                                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+                            <% } else { %>
+                                <tr>
+                                    <td colspan="6" style="padding: 32px; text-align: center; color: var(--text-muted);">No tasks found.</td>
+                                </tr>
+                            <% } %>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <%- include('../partials/pagination') %>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/js/socket-client.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>

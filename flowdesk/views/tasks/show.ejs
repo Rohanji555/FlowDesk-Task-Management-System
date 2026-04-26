@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= task.title %> | FlowDesk</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="<%= typeof theme !== 'undefined' && theme === 'dark' ? 'dark-mode' : '' %>" data-project-id="<%= typeof project !== 'undefined' && project ? project._id : '' %>" data-task-id="<%= typeof task !== 'undefined' && task ? task._id : '' %>" data-user-id="<%= typeof user !== 'undefined' && user ? user._id : '' %>">
+<%
+  const sidebarLinks = [
+    { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
+    { href: '/tasks', label: 'Tasks', icon: 'check-square' },
+    { href: '/projects', label: 'Projects', icon: 'folder' }
+  ]
+%>
+    <div class="app-layout">
+        <%- include('../layouts/sidebar', { sidebarLinks, user, currentPath: typeof currentPath !== 'undefined' ? currentPath : '/' }) %>
+        <div class="main-content">
+            <%- include('../layouts/topbar', { title: typeof pageTitle !== 'undefined' ? pageTitle : 'FlowDesk', user }) %>
+            <%- include('../partials/flash') %>
+
+            <div class="task-detail-grid">
+                <!-- Main Content Left -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+                        <h2 style="font-size: 28px; line-height: 1.3;"><%= task.title %></h2>
+                        <a href="/tasks/<%= task._id %>/edit" class="btn btn-secondary">Edit Task</a>
+                    </div>
+                    
+                    <div style="background: var(--card-bg); padding: 32px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 32px;">
+                        <h3 style="margin-bottom: 16px; font-size: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">Description</h3>
+                        <div style="line-height: 1.6; color: var(--text-secondary); white-space: pre-wrap;"><%= task.description || 'No description provided.' %></div>
+                    </div>
+
+                    <div style="background: var(--card-bg); padding: 32px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 32px;">
+                        <h3 style="margin-bottom: 16px; font-size: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">Attachments</h3>
+                        <% if (task.attachments && task.attachments.length > 0) { %>
+                            <div class="attachment-list">
+                                <% task.attachments.forEach(file => { %>
+                                    <div class="attachment-item">
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <span>📎</span>
+                                            <a href="/uploads/<%= file.filename %>" target="_blank"><%= file.originalName %></a>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        <% } else { %>
+                            <div style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px;">No attachments yet.</div>
+                        <% } %>
+                        <form action="/tasks/<%= task._id %>/attachments" method="POST" enctype="multipart/form-data" style="margin-top: 16px; display: flex; gap: 12px;">
+                            <input type="file" name="files" multiple class="form-control" style="flex: 1;" required>
+                            <button type="submit" class="btn btn-primary">Upload</button>
+                        </form>
+                    </div>
+
+                    <div style="background: var(--card-bg); padding: 32px; border-radius: var(--radius); box-shadow: var(--shadow);">
+                        <h3 style="margin-bottom: 16px; font-size: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">Comments</h3>
+                        <div class="comments-list" style="margin-bottom: 24px;">
+                            <% if (task.comments && task.comments.length > 0) { %>
+                                <% task.comments.forEach(comment => { %>
+                                    <div class="comment-item">
+                                        <div class="avatar"><%= comment.user ? comment.user.name.charAt(0) : 'U' %></div>
+                                        <div>
+                                            <div style="display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px;">
+                                                <strong><%= comment.user ? comment.user.name : 'Unknown' %></strong>
+                                                <span style="font-size: 12px; color: var(--text-muted);"><%= new Date(comment.createdAt).toLocaleString() %></span>
+                                            </div>
+                                            <p style="color: var(--text-secondary);"><%= comment.text %></p>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p style="color: var(--text-muted);">No comments yet.</p>
+                            <% } %>
+                            <div id="typing-indicator" style="display: none; font-size: 12px; color: var(--text-muted); margin-top: 12px;">Someone is typing...</div>
+                        </div>
+
+                        <form action="/tasks/<%= task._id %>/comment" method="POST" class="comment-box">
+                            <textarea name="text" rows="3" class="form-control" placeholder="Add a comment..." required id="commentInput"></textarea>
+                            <button type="submit" class="btn btn-primary" style="align-self: flex-end;">Post Comment</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar -->
+                <div>
+                    <div style="background: var(--card-bg); padding: 24px; border-radius: var(--radius); box-shadow: var(--shadow); position: sticky; top: 32px;">
+                        <h3 style="margin-bottom: 24px; font-size: 16px;">Task Details</h3>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 600;">Status</label>
+                                <select id="statusSelector" class="form-control" onchange="updateStatus(this.value)">
+                                    <option value="todo" <%= task.status === 'todo' ? 'selected' : '' %>>To Do</option>
+                                    <option value="in-progress" <%= task.status === 'in-progress' ? 'selected' : '' %>>In Progress</option>
+                                    <option value="review" <%= task.status === 'review' ? 'selected' : '' %>>Review</option>
+                                    <option value="done" <%= task.status === 'done' ? 'selected' : '' %>>Done</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 600;">Priority</label>
+                                <span class="badge badge-<%= task.priority === 'critical' ? 'danger' : (task.priority === 'high' ? 'warning' : 'primary') %>"><%= task.priority %></span>
+                            </div>
+
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 600;">Project</label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 12px; height: 12px; border-radius: 50%; background: <%= task.project ? task.project.color : '#E2E8F0' %>;"></div>
+                                    <span><%= task.project ? task.project.name : 'None' %></span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 600;">Assignee</label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;"><%= task.assignedTo ? task.assignedTo.name.charAt(0) : '?' %></div>
+                                    <span><%= task.assignedTo ? task.assignedTo.name : 'Unassigned' %></span>
+                                </div>
+                            </div>
+
+                            <% const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done'; %>
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 600;">Due Date</label>
+                                <span style="color: <%= isOverdue ? 'var(--danger)' : 'var(--text-primary)' %>; font-weight: <%= isOverdue ? 'bold' : 'normal' %>;">
+                                    <%= task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date set' %>
+                                </span>
+                            </div>
+
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 600;">Tags</label>
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <% if (task.tags && task.tags.length > 0) { %>
+                                        <% task.tags.forEach(tag => { %>
+                                            <span class="badge badge-secondary" style="background: #E2E8F0; color: #1E293B;"><%= tag %></span>
+                                        <% }) %>
+                                    <% } else { %>
+                                        <span style="color: var(--text-muted); font-size: 14px;">No tags</span>
+                                    <% } %>
+                                </div>
+                            </div>
+
+                            <hr style="border: 0; border-top: 1px solid var(--border);">
+
+                            <div style="font-size: 12px; color: var(--text-muted);">
+                                <div>Created by <strong><%= task.createdBy ? task.createdBy.name : 'System' %></strong></div>
+                                <div style="margin-top: 4px;"><%= new Date(task.createdAt).toLocaleString() %></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/js/socket-client.js"></script>
+    <script src="/js/main.js"></script>
+    <script>
+        async function updateStatus(newStatus) {
+            try {
+                const res = await fetch('/api/v1/tasks/<%= task._id %>/status', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Failed to update status');
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        const commentInput = document.getElementById('commentInput');
+        let typingTimer;
+        
+        if (commentInput && typeof io !== 'undefined') {
+            const getCookieValue = (name) => {
+                const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+                if (match) return match[2];
+                return null;
+            };
+
+            commentInput.addEventListener('input', () => {
+                const token = getCookieValue('jwt_token');
+                if(!token) return;
+                const socket = io({ auth: { token } });
+                socket.emit('typing:start', '<%= task._id %>');
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    socket.emit('typing:stop', '<%= task._id %>');
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<% if (typeof pagination !== 'undefined' && pagination && pagination.pages > 1) { %>
+    <div style="display: flex; justify-content: center; gap: 8px; margin-top: 32px;">
+        <% if (pagination.page > 1) { %>
+            <a href="?page=<%= pagination.page - 1 %>" class="btn btn-secondary btn-sm">Previous</a>
+        <% } %>
+        
+        <div style="display: flex; align-items: center; padding: 0 16px; font-size: 14px; color: var(--text-secondary);">
+            Page <%= pagination.page %> of <%= pagination.pages %>
+        </div>
+        
+        <% if (pagination.page < pagination.pages) { %>
+            <a href="?page=<%= pagination.page + 1 %>" class="btn btn-secondary btn-sm">Next</a>
+        <% } %>
+    </div>
+<% } %>
