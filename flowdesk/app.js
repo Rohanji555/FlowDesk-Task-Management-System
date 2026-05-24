@@ -13,6 +13,12 @@ const path = require('path');
 const fs = require('fs');
 const fileHelper = require('./utils/fileHelper');
 const { notFound, globalErrorHandler } = require('./middleware/errorMiddleware');
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : { rejectUnauthorized: false }
+});
 
 const app = express();
 
@@ -46,7 +52,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   store: new PgStore({
-    conString: process.env.DATABASE_URL,
+    pool: pool,
     tableName: 'session'
   }),
   cookie: {
