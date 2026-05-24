@@ -22,6 +22,9 @@ const pool = new Pool({
 
 const app = express();
 
+// Trust Render proxy so secure cookies are saved
+app.set('trust proxy', 1);
+
 fileHelper.ensureLogDir();
 
 app.use((req, res, next) => {
