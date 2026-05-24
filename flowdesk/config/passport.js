@@ -1,19 +1,22 @@
-// Concepts: Passport.js, Authentication strategies
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
-const User = require('../models/User');
+const { prisma, mapIdToUnderscoreId } = require('./prisma');
+const bcrypt = require('bcryptjs');
 
 passport.use(new LocalStrategy({
   usernameField: 'email',
   passwordField: 'password'
 }, async (email, password, done) => {
   try {
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) return done(null, false, { message: 'Incorrect email.' });
+    const rawUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
+    if (!rawUser) return done(null, false, { message: 'Incorrect email.' });
     
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await bcrypt.compare(password, rawUser.password);
     if (!isMatch) return done(null, false, { message: 'Incorrect password.' });
     
+    const user = mapIdToUnderscoreId(rawUser);
     return done(null, user);
   } catch (err) {
     return done(err);
@@ -21,12 +24,15 @@ passport.use(new LocalStrategy({
 }));
 
 passport.serializeUser((user, done) => {
-  done(null, user._id);
+  done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await User.findById(id);
+    const rawUser = await prisma.user.findUnique({
+      where: { id: parseInt(id) }
+    });
+    const user = mapIdToUnderscoreId(rawUser);
     done(null, user);
   } catch (err) {
     done(err, null);

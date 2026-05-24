@@ -6,7 +6,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
-const MongoStore = require('connect-mongo').default;
+const PgStore = require('connect-pg-simple')(session);
 const flash = require('connect-flash');
 const passport = require('./config/passport');
 const path = require('path');
@@ -45,8 +45,9 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'secret',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI
+  store: new PgStore({
+    conString: process.env.DATABASE_URL,
+    tableName: 'session'
   }),
   cookie: {
     httpOnly: true,

@@ -1,4 +1,3 @@
-// Concept: RESTful API, Route parameters, Query parameters, res.json
 const express = require('express');
 const router = express.Router();
 const passport = require('passport');
@@ -7,7 +6,7 @@ const taskController = require('../controllers/taskController');
 const projectController = require('../controllers/projectController');
 const { requireJWT, requireRole } = require('../middleware/authMiddleware');
 const jwtHelper = require('../utils/jwtHelper');
-const User = require('../models/User');
+const { prisma, mapIdToUnderscoreId } = require('../config/prisma');
 
 // --- AUTHENTICATION (API specific) ---
 router.post('/auth/login', (req, res, next) => {
@@ -15,10 +14,10 @@ router.post('/auth/login', (req, res, next) => {
     if (err) return next(err);
     if (!user) return res.status(401).json({ success: false, message: 'Invalid credentials', data: {}, pagination: {} });
     
-    const token = jwtHelper.generateToken(user._id);
+    const token = jwtHelper.generateToken(user.id);
     res.status(200).json({
       success: true,
-      data: { token, user: { id: user._id, name: user.name, email: user.email, role: user.role } },
+      data: { token, user: { id: user.id, name: user.name, email: user.email, role: user.role } },
       message: 'Login successful',
       pagination: {}
     });
@@ -65,7 +64,15 @@ router.get('/users/me', async (req, res, next) => {
 
 router.put('/users/me', async (req, res, next) => {
   try {
-    const user = await User.findByIdAndUpdate(req.user._id, req.body, { new: true, runValidators: true });
+    const rawUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        name: req.body.name,
+        department: req.body.department,
+        avatar: req.body.avatar
+      }
+    });
+    const user = mapIdToUnderscoreId(rawUser);
     res.status(200).json({ success: true, data: user, message: 'User updated', pagination: {} });
   } catch (err) {
     next(err);
@@ -74,7 +81,8 @@ router.put('/users/me', async (req, res, next) => {
 
 router.get('/users', requireRole('admin'), async (req, res, next) => {
   try {
-    const users = await User.find();
+    const rawUsers = await prisma.user.findMany();
+    const users = mapIdToUnderscoreId(rawUsers);
     res.status(200).json({ success: true, data: users, message: 'Users retrieved', pagination: {} });
   } catch (err) {
     next(err);

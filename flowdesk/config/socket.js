@@ -1,8 +1,7 @@
 // Concepts: Socket.io, Real-time communication, Full-duplex
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const Task = require('../models/Task');
+const { prisma, mapIdToUnderscoreId } = require('./prisma');
 
 let io;
 
@@ -23,10 +22,13 @@ module.exports = {
         if (!token) return next(new Error('Authentication error: No token provided'));
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
+        const rawUser = await prisma.user.findUnique({
+          where: { id: parseInt(decoded.id) }
+        });
         
-        if (!user) return next(new Error('Authentication error: User not found'));
+        if (!rawUser) return next(new Error('Authentication error: User not found'));
 
+        const user = mapIdToUnderscoreId(rawUser);
         socket.data.user = user;
         next();
       } catch (err) {
@@ -53,9 +55,13 @@ module.exports = {
 
       socket.on('task:statusChange', async ({ taskId, newStatus }) => {
         try {
-          const task = await Task.findByIdAndUpdate(taskId, { status: newStatus }, { new: true });
+          const rawTask = await prisma.task.update({
+            where: { id: parseInt(taskId) },
+            data: { status: newStatus }
+          });
+          const task = mapIdToUnderscoreId(rawTask);
           if (task) {
-            io.to('project:' + task.project).emit('task:updated', task);
+            io.to('project:' + task.projectId).emit('task:updated', task);
           }
         } catch (err) {
           console.error('Socket task:statusChange error', err);

@@ -1,31 +1,60 @@
-const Task = require('../models/Task');
-const User = require('../models/User');
+const { prisma, mapIdToUnderscoreId } = require('../config/prisma');
 
 exports.getDashboard = async (req, res, next) => {
   try {
-    const totalTasks = await Task.countDocuments();
+    const totalTasks = await prisma.task.count();
     
     const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
     const endOfDay = new Date(); endOfDay.setHours(23,59,59,999);
-    const dueToday = await Task.countDocuments({ dueDate: { $gte: startOfDay, $lte: endOfDay }, status: { $ne: 'done' } });
     
-    const overdue = await Task.countDocuments({ dueDate: { $lt: new Date() }, status: { $ne: 'done' } });
+    const dueToday = await prisma.task.count({
+      where: {
+        dueDate: { gte: startOfDay, lte: endOfDay },
+        NOT: { status: 'done' }
+      }
+    });
+    
+    const overdue = await prisma.task.count({
+      where: {
+        dueDate: { lt: new Date() },
+        NOT: { status: 'done' }
+      }
+    });
     
     // completed this week
     const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-    const completed = await Task.countDocuments({ status: 'done', updatedAt: { $gte: startOfWeek } });
+    startOfWeek.setHours(0,0,0,0);
+    const completed = await prisma.task.count({
+      where: {
+        status: 'done',
+        updatedAt: { gte: startOfWeek }
+      }
+    });
 
     const stats = { totalTasks, dueToday, overdue, completed };
 
-    const recentTasks = await Task.find()
-        .sort('-updatedAt')
-        .limit(10)
-        .populate('project', 'name color')
-        .populate('assignedTo', 'name avatar');
+    const rawRecentTasks = await prisma.task.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+      include: {
+        project: { select: { id: true, name: true, color: true } },
+        assignedTo: { select: { id: true, name: true, avatar: true } }
+      }
+    });
         
-    const myTasks = await Task.find({ assignedTo: req.user._id, status: { $ne: 'done' } })
-        .limit(5)
-        .populate('project', 'name color');
+    const rawMyTasks = await prisma.task.findMany({
+      where: {
+        assignedToId: req.user.id,
+        NOT: { status: 'done' }
+      },
+      take: 5,
+      include: {
+        project: { select: { id: true, name: true, color: true } }
+      }
+    });
+
+    const recentTasks = mapIdToUnderscoreId(rawRecentTasks);
+    const myTasks = mapIdToUnderscoreId(rawMyTasks);
 
     res.render('dashboard/index', {
       pageTitle: 'Dashboard',

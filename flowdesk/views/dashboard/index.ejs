@@ -24,12 +24,20 @@
             <%- include('../partials/flash') %>
 
             <% if ((typeof stats !== 'undefined' && stats.totalTasks === 0) || (typeof recentTasks !== 'undefined' && recentTasks.length === 0)) { %>
-                <div style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: #FFF; padding: 32px; border-radius: var(--radius); margin-bottom: 32px; box-shadow: var(--shadow);">
-                    <h2 style="margin-bottom: 8px;">Welcome to FlowDesk, <%= user ? user.name : 'there' %>! 👋</h2>
-                    <p style="margin-bottom: 24px; opacity: 0.9;">You're all set up. Start managing your work and shipping faster.</p>
-                    <div style="display: flex; gap: 16px;">
-                        <a href="/tasks/new" class="btn" style="background: #FFF; color: var(--primary);">+ Create Task</a>
-                        <a href="/projects/new" class="btn" style="background: rgba(255,255,255,0.2); color: #FFF; border: 1px solid rgba(255,255,255,0.4);">New Project</a>
+                <div style="background: linear-gradient(135deg, var(--primary-light) 0%, #E0D4FC 100%); position: relative; overflow: hidden; padding: 80px 32px; border-radius: 24px; margin-bottom: 48px; box-shadow: 0 20px 40px rgba(167, 139, 250, 0.15); display: flex; flex-direction: column; align-items: center; text-align: center; color: var(--text-primary);">
+                    
+                    <!-- 3D Decorative Images -->
+                    <img src="/images/hero_3d_illustration.png" alt="3D abstract geometry" style="position: absolute; right: -50px; top: -50px; height: 160%; opacity: 0.35; pointer-events: none; mix-blend-mode: multiply; object-fit: contain;">
+                    <img src="/images/hero_3d_illustration.png" alt="" aria-hidden="true" style="position: absolute; left: -100px; bottom: -80px; height: 120%; opacity: 0.2; pointer-events: none; mix-blend-mode: multiply; transform: rotate(180deg); object-fit: contain;">
+
+                    <div style="position: relative; z-index: 10;">
+                        <h2 class="hero-heading" style="margin-bottom: 16px; color: var(--text-primary);">Welcome to FlowDesk, <%= user ? user.name : 'there' %>! 👋</h2>
+                        <p style="font-size: 18px; color: rgba(28, 27, 46, 0.75); margin-bottom: 40px; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.6;">You're all set up. Start managing your work and shipping faster.</p>
+                        
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
+                            <a href="/tasks/new" class="btn" style="background: var(--text-primary); color: #FFF; font-size: 16px; padding: 16px 48px; box-shadow: 0 10px 25px rgba(28, 27, 46, 0.25); border-radius: 999px;">+ Create Task</a>
+                            <a href="/projects/new" style="font-size: 14px; font-weight: 600; color: rgba(28, 27, 46, 0.5); text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='rgba(28, 27, 46, 0.5)'">New Project</a>
+                        </div>
                     </div>
                 </div>
             <% } %>

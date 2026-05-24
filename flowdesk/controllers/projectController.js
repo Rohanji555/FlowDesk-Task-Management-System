@@ -1,12 +1,20 @@
-// Concept: RESTful API, Route parameters, Query parameters, res.json
-const Project = require('../models/Project');
+const { prisma, mapIdToUnderscoreId } = require('../config/prisma');
 const { asyncHandler, AppError } = require('../utils/asyncHandler');
 
 exports.getAllProjects = asyncHandler(async (req, res, next) => {
-  const projects = await Project.find()
-    .populate('manager', 'name email avatar')
-    .populate('members.user', 'name email avatar')
-    .sort('-createdAt');
+  const rawProjects = await prisma.project.findMany({
+    include: {
+      manager: { select: { id: true, name: true, email: true, avatar: true } },
+      members: {
+        include: {
+          user: { select: { id: true, name: true, email: true, avatar: true } }
+        }
+      }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  const projects = mapIdToUnderscoreId(rawProjects);
 
   res.status(200).json({
     success: true,
@@ -17,11 +25,21 @@ exports.getAllProjects = asyncHandler(async (req, res, next) => {
 });
 
 exports.getProject = asyncHandler(async (req, res, next) => {
-  const project = await Project.findById(req.params.id)
-    .populate('manager', 'name email avatar')
-    .populate('members.user', 'name email avatar');
+  const rawProject = await prisma.project.findUnique({
+    where: { id: parseInt(req.params.id) },
+    include: {
+      manager: { select: { id: true, name: true, email: true, avatar: true } },
+      members: {
+        include: {
+          user: { select: { id: true, name: true, email: true, avatar: true } }
+        }
+      }
+    }
+  });
 
-  if (!project) return next(new AppError('Project not found', 404));
+  if (!rawProject) return next(new AppError('Project not found', 404));
+
+  const project = mapIdToUnderscoreId(rawProject);
 
   res.status(200).json({
     success: true,
@@ -32,8 +50,19 @@ exports.getProject = asyncHandler(async (req, res, next) => {
 });
 
 exports.createProject = asyncHandler(async (req, res, next) => {
-  req.body.createdBy = req.user._id;
-  const project = await Project.create(req.body);
+  const rawProject = await prisma.project.create({
+    data: {
+      name: req.body.name,
+      description: req.body.description,
+      color: req.body.color || '#4F46E5',
+      status: req.body.status || 'active',
+      deadline: req.body.deadline ? new Date(req.body.deadline) : null,
+      managerId: req.body.manager ? parseInt(req.body.manager) : null,
+      createdById: req.user.id
+    }
+  });
+
+  const project = mapIdToUnderscoreId(rawProject);
 
   res.status(201).json({
     success: true,
@@ -44,12 +73,21 @@ exports.createProject = asyncHandler(async (req, res, next) => {
 });
 
 exports.updateProject = asyncHandler(async (req, res, next) => {
-  const project = await Project.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true
+  const rawProject = await prisma.project.update({
+    where: { id: parseInt(req.params.id) },
+    data: {
+      name: req.body.name,
+      description: req.body.description,
+      color: req.body.color,
+      status: req.body.status,
+      deadline: req.body.deadline ? new Date(req.body.deadline) : undefined,
+      managerId: req.body.manager ? parseInt(req.body.manager) : undefined
+    }
   });
 
-  if (!project) return next(new AppError('Project not found', 404));
+  if (!rawProject) return next(new AppError('Project not found', 404));
+
+  const project = mapIdToUnderscoreId(rawProject);
 
   res.status(200).json({
     success: true,
@@ -60,9 +98,13 @@ exports.updateProject = asyncHandler(async (req, res, next) => {
 });
 
 exports.deleteProject = asyncHandler(async (req, res, next) => {
-  const project = await Project.findByIdAndDelete(req.params.id);
-
-  if (!project) return next(new AppError('Project not found', 404));
+  try {
+    await prisma.project.delete({
+      where: { id: parseInt(req.params.id) }
+    });
+  } catch (err) {
+    return next(new AppError('Project not found', 404));
+  }
 
   res.status(200).json({
     success: true,
@@ -77,13 +119,55 @@ exports.addMember = asyncHandler(async (req, res, next) => {
   
   if (!user) return next(new AppError('User ID is required', 400));
 
-  const project = await Project.findByIdAndUpdate(
-    req.params.id,
-    { $addToSet: { members: { user, role: role || 'member' } } },
-    { new: true }
-  ).populate('members.user', 'name email avatar');
+  const projectId = parseInt(req.params.id);
+  const userId = parseInt(user);
 
-  if (!project) return next(new AppError('Project not found', 404));
+  // Check if member already exists
+  const existingMember = await prisma.projectMember.findUnique({
+    where: {
+      projectId_userId: {
+        projectId,
+        userId
+      }
+    }
+  });
+
+  if (!existingMember) {
+    await prisma.projectMember.create({
+      data: {
+        projectId,
+        userId,
+        role: role || 'member'
+      }
+    });
+  } else if (role) {
+    await prisma.projectMember.update({
+      where: {
+        projectId_userId: {
+          projectId,
+          userId
+        }
+      },
+      data: {
+        role
+      }
+    });
+  }
+
+  const rawProject = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      members: {
+        include: {
+          user: { select: { id: true, name: true, email: true, avatar: true } }
+        }
+      }
+    }
+  });
+
+  if (!rawProject) return next(new AppError('Project not found', 404));
+
+  const project = mapIdToUnderscoreId(rawProject);
 
   res.status(200).json({
     success: true,

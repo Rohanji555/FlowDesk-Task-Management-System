@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Task = require('../models/Task');
-const Project = require('../models/Project');
-const User = require('../models/User');
+const { prisma, mapIdToUnderscoreId } = require('../config/prisma');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { uploadMultiple } = require('../middleware/uploadMiddleware');
 
@@ -12,28 +10,37 @@ router.get('/', async (req, res, next) => {
   try {
     const { project, priority, page = 1, limit = 10 } = req.query;
     const filter = {};
-    if (project) filter.project = project;
+    if (project) filter.projectId = parseInt(project);
     if (priority) filter.priority = priority;
     
-    const skip = (page - 1) * limit;
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
 
-    const tasks = await Task.find(filter)
-      .populate('project', 'name color')
-      .populate('assignedTo', 'name avatar')
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort('-createdAt');
+    const rawTasks = await prisma.task.findMany({
+      where: filter,
+      include: {
+        project: { select: { id: true, name: true, color: true } },
+        assignedTo: { select: { id: true, name: true, avatar: true } }
+      },
+      skip,
+      take: limitNum,
+      orderBy: { createdAt: 'desc' }
+    });
       
-    const total = await Task.countDocuments(filter);
+    const total = await prisma.task.count({ where: filter });
     const pagination = {
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      pages: Math.ceil(total / limit)
+      page: pageNum,
+      limit: limitNum,
+      pages: Math.ceil(total / limitNum)
     };
     
-    const projects = await Project.find();
+    const rawProjects = await prisma.project.findMany();
     
+    const tasks = mapIdToUnderscoreId(rawTasks);
+    const projects = mapIdToUnderscoreId(rawProjects);
+
     res.render('tasks/index', {
       pageTitle: 'Tasks',
       tasks,
@@ -48,8 +55,12 @@ router.get('/', async (req, res, next) => {
 
 router.get('/new', async (req, res, next) => {
   try {
-    const projects = await Project.find();
-    const users = await User.find();
+    const rawProjects = await prisma.project.findMany();
+    const rawUsers = await prisma.user.findMany();
+    
+    const projects = mapIdToUnderscoreId(rawProjects);
+    const users = mapIdToUnderscoreId(rawUsers);
+
     res.render('tasks/new', { pageTitle: 'New Task', projects, users });
   } catch (err) {
     next(err);
@@ -58,8 +69,20 @@ router.get('/new', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    req.body.createdBy = req.user._id;
-    await Task.create(req.body);
+    await prisma.task.create({
+      data: {
+        title: req.body.title,
+        description: req.body.description,
+        status: req.body.status || 'todo',
+        priority: req.body.priority || 'medium',
+        assignedToId: req.body.assignedTo ? parseInt(req.body.assignedTo) : null,
+        projectId: req.body.project ? parseInt(req.body.project) : null,
+        dueDate: req.body.dueDate ? new Date(req.body.dueDate) : null,
+        tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : [req.body.tags]) : [],
+        createdById: req.user.id
+      }
+    });
+
     req.flash('success', 'Task created successfully!');
     res.redirect('/tasks');
   } catch (err) {
@@ -69,14 +92,27 @@ router.post('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id)
-      .populate('project')
-      .populate('assignedTo')
-      .populate('comments.user');
-    if (!task) {
+    const taskId = parseInt(req.params.id);
+    const rawTask = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        project: true,
+        assignedTo: true,
+        comments: {
+          include: { user: true },
+          orderBy: { createdAt: 'asc' }
+        },
+        attachments: true
+      }
+    });
+
+    if (!rawTask) {
       req.flash('error', 'Task not found');
       return res.redirect('/tasks');
     }
+
+    const task = mapIdToUnderscoreId(rawTask);
+
     res.render('tasks/show', { pageTitle: task.title, task });
   } catch (err) {
     next(err);
@@ -85,9 +121,22 @@ router.get('/:id', async (req, res, next) => {
 
 router.get('/:id/edit', async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
-    const projects = await Project.find();
-    const users = await User.find();
+    const taskId = parseInt(req.params.id);
+    const rawTask = await prisma.task.findUnique({
+      where: { id: taskId }
+    });
+    if (!rawTask) {
+      req.flash('error', 'Task not found');
+      return res.redirect('/tasks');
+    }
+
+    const rawProjects = await prisma.project.findMany();
+    const rawUsers = await prisma.user.findMany();
+    
+    const task = mapIdToUnderscoreId(rawTask);
+    const projects = mapIdToUnderscoreId(rawProjects);
+    const users = mapIdToUnderscoreId(rawUsers);
+
     res.render('tasks/edit', { pageTitle: 'Edit Task', task, projects, users });
   } catch (err) {
     next(err);
@@ -96,9 +145,22 @@ router.get('/:id/edit', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    await Task.findByIdAndUpdate(req.params.id, req.body, { runValidators: true });
+    const taskId = parseInt(req.params.id);
+    await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        title: req.body.title,
+        description: req.body.description,
+        status: req.body.status,
+        priority: req.body.priority,
+        assignedToId: req.body.assignedTo ? parseInt(req.body.assignedTo) : null,
+        projectId: req.body.project ? parseInt(req.body.project) : null,
+        dueDate: req.body.dueDate ? new Date(req.body.dueDate) : null
+      }
+    });
+
     req.flash('success', 'Task updated');
-    res.redirect(`/tasks/${req.params.id}`);
+    res.redirect(`/tasks/${taskId}`);
   } catch (err) {
     next(err);
   }
@@ -106,7 +168,10 @@ router.put('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    await Task.findByIdAndDelete(req.params.id);
+    const taskId = parseInt(req.params.id);
+    await prisma.task.delete({
+      where: { id: taskId }
+    });
     req.flash('success', 'Task deleted');
     res.redirect('/tasks');
   } catch (err) {
@@ -121,14 +186,23 @@ router.post('/:id/attachments', uploadMultiple, async (req, res, next) => {
       return res.redirect(`/tasks/${req.params.id}`);
     }
     
-    const attachments = req.files.map(f => ({
-      filename: f.filename,
-      originalName: f.originalname,
-      path: f.path
-    }));
-    await Task.findByIdAndUpdate(req.params.id, { $push: { attachments: { $each: attachments } } });
+    const taskId = parseInt(req.params.id);
+    const attachments = req.files.map(f => {
+      const isCloud = f.path.startsWith('http://') || f.path.startsWith('https://');
+      return {
+        taskId,
+        filename: f.originalname || f.filename,
+        originalName: f.originalname,
+        path: isCloud ? f.path : `/uploads/${f.filename}`
+      };
+    });
+    
+    await prisma.attachment.createMany({
+      data: attachments
+    });
+
     req.flash('success', 'Attachments added');
-    res.redirect(`/tasks/${req.params.id}`);
+    res.redirect(`/tasks/${taskId}`);
   } catch (err) {
     next(err);
   }
@@ -140,11 +214,18 @@ router.post('/:id/comment', async (req, res, next) => {
       req.flash('error', 'Comment cannot be empty.');
       return res.redirect(`/tasks/${req.params.id}`);
     }
-    await Task.findByIdAndUpdate(req.params.id, {
-      $push: { comments: { user: req.user._id, text: req.body.text } }
+    const taskId = parseInt(req.params.id);
+    
+    await prisma.comment.create({
+      data: {
+        taskId,
+        userId: req.user.id,
+        text: req.body.text
+      }
     });
+
     req.flash('success', 'Comment added');
-    res.redirect(`/tasks/${req.params.id}`);
+    res.redirect(`/tasks/${taskId}`);
   } catch (err) {
     next(err);
   }

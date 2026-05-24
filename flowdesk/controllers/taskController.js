@@ -1,52 +1,68 @@
-// Concept: RESTful API, Route parameters, Query parameters, res.json
-const Task = require('../models/Task');
-const Notification = require('../models/Notification');
+const { prisma, mapIdToUnderscoreId } = require('../config/prisma');
 const { asyncHandler, AppError } = require('../utils/asyncHandler');
-const { Transform } = require('stream');
 const { getIO } = require('../config/socket');
 
 exports.getAllTasks = asyncHandler(async (req, res, next) => {
   const { status, priority, assignedTo, project, page = 1, limit = 10 } = req.query;
-  const filter = {};
-  if (status) filter.status = status;
-  if (priority) filter.priority = priority;
-  if (assignedTo) filter.assignedTo = assignedTo;
-  if (project) filter.project = project;
+  const where = {};
+  if (status) where.status = status;
+  if (priority) where.priority = priority;
+  if (assignedTo) where.assignedToId = parseInt(assignedTo);
+  if (project) where.projectId = parseInt(project);
 
-  const skip = (page - 1) * limit;
+  const pageNum = parseInt(page) || 1;
+  const limitNum = parseInt(limit) || 10;
+  const skip = (pageNum - 1) * limitNum;
 
-  const tasks = await Task.find(filter)
-    .populate('assignedTo', 'name avatar')
-    .populate('project', 'name color')
-    .skip(skip)
-    .limit(parseInt(limit))
-    .sort('-createdAt');
+  const rawTasks = await prisma.task.findMany({
+    where,
+    skip,
+    take: limitNum,
+    include: {
+      assignedTo: { select: { id: true, name: true, avatar: true } },
+      project: { select: { id: true, name: true, color: true } }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
 
-  const total = await Task.countDocuments(filter);
+  const tasks = mapIdToUnderscoreId(rawTasks);
+  const total = await prisma.task.count({ where });
 
   res.status(200).json({
     success: true,
     data: tasks,
     pagination: {
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      pages: Math.ceil(total / limit)
+      page: pageNum,
+      limit: limitNum,
+      pages: Math.ceil(total / limitNum)
     },
     message: 'Tasks retrieved successfully'
   });
 });
 
 exports.getTask = asyncHandler(async (req, res, next) => {
-  const task = await Task.findById(req.params.id)
-    .populate('assignedTo', 'name avatar')
-    .populate('project', 'name color')
-    .populate('comments.user', 'name avatar')
-    .populate('createdBy', 'name');
+  const rawTask = await prisma.task.findUnique({
+    where: { id: parseInt(req.params.id) },
+    include: {
+      assignedTo: { select: { id: true, name: true, avatar: true } },
+      project: { select: { id: true, name: true, color: true } },
+      createdBy: { select: { id: true, name: true } },
+      comments: {
+        include: {
+          user: { select: { id: true, name: true, avatar: true } }
+        },
+        orderBy: { createdAt: 'asc' }
+      },
+      attachments: true
+    }
+  });
 
-  if (!task) {
+  if (!rawTask) {
     return next(new AppError('Task not found', 404));
   }
+
+  const task = mapIdToUnderscoreId(rawTask);
 
   res.status(200).json({
     success: true,
@@ -57,25 +73,40 @@ exports.getTask = asyncHandler(async (req, res, next) => {
 });
 
 exports.createTask = asyncHandler(async (req, res, next) => {
-  req.body.createdBy = req.user._id;
+  const rawTask = await prisma.task.create({
+    data: {
+      title: req.body.title,
+      description: req.body.description,
+      status: req.body.status || 'todo',
+      priority: req.body.priority || 'medium',
+      assignedToId: req.body.assignedTo ? parseInt(req.body.assignedTo) : null,
+      projectId: req.body.project ? parseInt(req.body.project) : null,
+      dueDate: req.body.dueDate ? new Date(req.body.dueDate) : null,
+      tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : [req.body.tags]) : [],
+      createdById: req.user.id
+    }
+  });
   
-  const task = await Task.create(req.body);
-  
+  const task = mapIdToUnderscoreId(rawTask);
   const io = getIO();
-  if (task.project) {
-    io.to('project:' + task.project).emit('task:created', task);
+  
+  if (task.projectId) {
+    io.to('project:' + task.projectId).emit('task:created', task);
   } else {
     io.emit('task:created', task);
   }
 
-  if (task.assignedTo && task.assignedTo.toString() !== req.user._id.toString()) {
-    const notification = await Notification.create({
-      user: task.assignedTo,
-      message: `You were assigned a new task: ${task.title}`,
-      type: 'task',
-      link: `/tasks/${task._id}`
+  if (task.assignedToId && task.assignedToId !== req.user.id) {
+    const rawNotification = await prisma.notification.create({
+      data: {
+        userId: task.assignedToId,
+        message: `You were assigned a new task: ${task.title}`,
+        type: 'task_assigned',
+        link: `/tasks/${task.id}`
+      }
     });
-    io.to(task.assignedTo.toString()).emit('notification:new', notification);
+    const notification = mapIdToUnderscoreId(rawNotification);
+    io.to(task.assignedToId.toString()).emit('notification:new', notification);
   }
 
   res.status(201).json({
@@ -87,28 +118,43 @@ exports.createTask = asyncHandler(async (req, res, next) => {
 });
 
 exports.updateTask = asyncHandler(async (req, res, next) => {
-  const task = await Task.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true
+  const taskId = parseInt(req.params.id);
+  const rawTask = await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      title: req.body.title,
+      description: req.body.description,
+      status: req.body.status,
+      priority: req.body.priority,
+      assignedToId: req.body.assignedTo !== undefined ? (req.body.assignedTo ? parseInt(req.body.assignedTo) : null) : undefined,
+      projectId: req.body.project !== undefined ? (req.body.project ? parseInt(req.body.project) : null) : undefined,
+      dueDate: req.body.dueDate !== undefined ? (req.body.dueDate ? new Date(req.body.dueDate) : null) : undefined,
+      tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : [req.body.tags]) : undefined
+    }
   });
 
-  if (!task) {
+  if (!rawTask) {
     return next(new AppError('Task not found', 404));
   }
 
+  const task = mapIdToUnderscoreId(rawTask);
   const io = getIO();
-  if (task.project) {
-    io.to('project:' + task.project).emit('task:updated', task);
+
+  if (task.projectId) {
+    io.to('project:' + task.projectId).emit('task:updated', task);
   }
 
-  if (task.assignedTo && task.assignedTo.toString() !== req.user._id.toString()) {
-    const notification = await Notification.create({
-      user: task.assignedTo,
-      message: `Task updated: ${task.title}`,
-      type: 'task',
-      link: `/tasks/${task._id}`
+  if (task.assignedToId && task.assignedToId !== req.user.id) {
+    const rawNotification = await prisma.notification.create({
+      data: {
+        userId: task.assignedToId,
+        message: `Task updated: ${task.title}`,
+        type: 'task_assigned',
+        link: `/tasks/${task.id}`
+      }
     });
-    io.to(task.assignedTo.toString()).emit('notification:new', notification);
+    const notification = mapIdToUnderscoreId(rawNotification);
+    io.to(task.assignedToId.toString()).emit('notification:new', notification);
   }
 
   res.status(200).json({
@@ -120,9 +166,11 @@ exports.updateTask = asyncHandler(async (req, res, next) => {
 });
 
 exports.deleteTask = asyncHandler(async (req, res, next) => {
-  const task = await Task.findByIdAndDelete(req.params.id);
-
-  if (!task) {
+  try {
+    await prisma.task.delete({
+      where: { id: parseInt(req.params.id) }
+    });
+  } catch (err) {
     return next(new AppError('Task not found', 404));
   }
 
@@ -138,19 +186,19 @@ exports.updateTaskStatus = asyncHandler(async (req, res, next) => {
   const { status } = req.body;
   if (!status) return next(new AppError('Please provide a status', 400));
 
-  const task = await Task.findByIdAndUpdate(
-    req.params.id, 
-    { status }, 
-    { new: true, runValidators: true }
-  );
+  const rawTask = await prisma.task.update({
+    where: { id: parseInt(req.params.id) },
+    data: { status }
+  });
 
-  if (!task) {
+  if (!rawTask) {
     return next(new AppError('Task not found', 404));
   }
 
+  const task = mapIdToUnderscoreId(rawTask);
   const io = getIO();
-  if (task.project) {
-    io.to('project:' + task.project).emit('task:updated', task);
+  if (task.projectId) {
+    io.to('project:' + task.projectId).emit('task:updated', task);
   }
 
   res.status(200).json({
@@ -165,31 +213,53 @@ exports.addComment = asyncHandler(async (req, res, next) => {
   const { text } = req.body;
   if (!text) return next(new AppError('Comment text is required', 400));
 
-  const task = await Task.findByIdAndUpdate(
-    req.params.id,
-    { $push: { comments: { user: req.user._id, text } } },
-    { new: true }
-  ).populate('comments.user', 'name avatar');
+  const taskId = parseInt(req.params.id);
 
-  if (!task) {
+  await prisma.comment.create({
+    data: {
+      taskId,
+      userId: req.user.id,
+      text
+    }
+  });
+
+  const rawTask = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      assignedTo: true,
+      comments: {
+        include: {
+          user: { select: { id: true, name: true, avatar: true } }
+        },
+        orderBy: { createdAt: 'asc' }
+      }
+    }
+  });
+
+  if (!rawTask) {
     return next(new AppError('Task not found', 404));
   }
 
+  const task = mapIdToUnderscoreId(rawTask);
   const io = getIO();
-  if (task.project) {
-    io.to('project:' + task.project).emit('comment:added', task);
+
+  if (task.projectId) {
+    io.to('project:' + task.projectId).emit('comment:added', task);
   } else {
-    io.to('task:' + task._id).emit('comment:added', task);
+    io.to('task:' + task.id).emit('comment:added', task);
   }
 
-  if (task.assignedTo && task.assignedTo.toString() !== req.user._id.toString()) {
-    const notification = await Notification.create({
-      user: task.assignedTo,
-      message: `${req.user.name} commented on your task: ${task.title}`,
-      type: 'mention',
-      link: `/tasks/${task._id}`
+  if (task.assignedToId && task.assignedToId !== req.user.id) {
+    const rawNotification = await prisma.notification.create({
+      data: {
+        userId: task.assignedToId,
+        message: `${req.user.name} commented on your task: ${task.title}`,
+        type: 'comment_added',
+        link: `/tasks/${task.id}`
+      }
     });
-    io.to(task.assignedTo.toString()).emit('notification:new', notification);
+    const notification = mapIdToUnderscoreId(rawNotification);
+    io.to(task.assignedToId.toString()).emit('notification:new', notification);
   }
 
   res.status(200).json({
@@ -201,29 +271,24 @@ exports.addComment = asyncHandler(async (req, res, next) => {
 });
 
 exports.exportTasksCSV = asyncHandler(async (req, res, next) => {
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="tasks.csv"');
+  try {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="tasks.csv"');
 
-  res.write('ID,Title,Status,Priority,DueDate\n');
+    res.write('ID,Title,Status,Priority,DueDate\n');
 
-  const transformStream = new Transform({
-    objectMode: true,
-    transform(doc, encoding, callback) {
-      const id = doc._id.toString();
+    const tasks = await prisma.task.findMany();
+    for (const doc of tasks) {
+      const id = doc.id.toString();
       const title = `"${doc.title.replace(/"/g, '""')}"`;
       const status = doc.status;
       const priority = doc.priority;
       const dueDate = doc.dueDate ? doc.dueDate.toISOString() : '';
       
-      const row = `${id},${title},${status},${priority},${dueDate}\n`;
-      callback(null, row);
+      res.write(`${id},${title},${status},${priority},${dueDate}\n`);
     }
-  });
-
-  Task.find().cursor()
-    .pipe(transformStream)
-    .pipe(res)
-    .on('error', (err) => {
-      next(new AppError('Export failed', 500));
-    });
+    res.end();
+  } catch (err) {
+    next(new AppError('Export failed', 500));
+  }
 });

@@ -1,7 +1,7 @@
-// Concept: express-session, connect-mongo, Cookies, Flash messages
-const User = require('../models/User');
+const { prisma, mapIdToUnderscoreId } = require('../config/prisma');
 const jwtHelper = require('../utils/jwtHelper');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 exports.showLogin = (req, res) => {
   res.render('auth/login', { layout: false });
@@ -15,19 +15,25 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
     
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
     if (existingUser) {
       req.flash('error', 'Email is already registered');
       return res.redirect('/auth/register');
     }
 
-    const newUser = new User({
-      name,
-      email: email.toLowerCase(),
-      password
-    });
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    await newUser.save();
+    await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        role: 'employee'
+      }
+    });
     
     req.flash('success', 'Registration successful. You can now log in');
     res.redirect('/auth/login');
@@ -73,7 +79,9 @@ exports.showForgotPassword = (req, res) => {
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
     
     if (!user) {
       req.flash('error', 'No account with that email found');
@@ -111,14 +119,21 @@ exports.resetPassword = async (req, res) => {
 
     const decoded = jwtHelper.verifyToken(token);
     
-    const user = await User.findOne({ email: decoded.email });
+    const user = await prisma.user.findUnique({
+      where: { email: decoded.email }
+    });
     if (!user) {
       req.flash('error', 'User not found');
       return res.redirect('/auth/login');
     }
 
-    user.password = newPassword;
-    await user.save();
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword }
+    });
 
     req.flash('success', 'Password has been updated. You can now log in.');
     res.redirect('/auth/login');

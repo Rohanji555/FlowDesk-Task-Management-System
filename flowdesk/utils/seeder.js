@@ -1,184 +1,238 @@
 require('dotenv').config();
-const mongoose = require('mongoose');
-const User = require('../models/User');
-const Project = require('../models/Project');
-const Task = require('../models/Task');
-const Notification = require('../models/Notification');
+const { prisma } = require('../config/prisma');
+const bcrypt = require('bcryptjs');
 
 const seedDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('MongoDB Connected for Seeding...');
+    console.log('PostgreSQL Connected via Prisma for Seeding...');
 
-    // Clear DB
-    await User.deleteMany();
-    await Project.deleteMany();
-    await Task.deleteMany();
-    await Notification.deleteMany();
-    console.log('Collections cleared');
+    // Clear DB in order of constraints
+    await prisma.notification.deleteMany();
+    await prisma.comment.deleteMany();
+    await prisma.attachment.deleteMany();
+    await prisma.task.deleteMany();
+    await prisma.projectMember.deleteMany();
+    await prisma.project.deleteMany();
+    await prisma.user.deleteMany();
+    console.log('Tables cleared');
+
+    const salt = await bcrypt.genSalt(12);
+    const hashedPasswordAdmin = await bcrypt.hash('Admin@123', salt);
+    const hashedPasswordManager = await bcrypt.hash('Manager@123', salt);
+    const hashedPasswordEmployee = await bcrypt.hash('Employee@123', salt);
 
     // Create Users
-    const admin = await User.create({
-      name: 'Admin User',
-      email: 'admin@flowdesk.com',
-      password: 'Admin@123',
-      role: 'admin',
-      department: 'Engineering'
+    const admin = await prisma.user.create({
+      data: {
+        name: 'Admin User',
+        email: 'admin@flowdesk.com',
+        password: hashedPasswordAdmin,
+        role: 'admin',
+        department: 'Engineering'
+      }
     });
 
-    const manager = await User.create({
-      name: 'Manager User',
-      email: 'manager@flowdesk.com',
-      password: 'Manager@123',
-      role: 'manager',
-      department: 'Product'
+    const manager = await prisma.user.create({
+      data: {
+        name: 'Manager User',
+        email: 'manager@flowdesk.com',
+        password: hashedPasswordManager,
+        role: 'manager',
+        department: 'Product'
+      }
     });
 
-    const employee = await User.create({
-      name: 'Employee User',
-      email: 'employee@flowdesk.com',
-      password: 'Employee@123',
-      role: 'employee',
-      department: 'Design'
+    const employee = await prisma.user.create({
+      data: {
+        name: 'Employee User',
+        email: 'employee@flowdesk.com',
+        password: hashedPasswordEmployee,
+        role: 'employee',
+        department: 'Design'
+      }
     });
     console.log('Users created');
 
     // Create Projects
-    const project1 = await Project.create({
-      name: 'Website Redesign',
-      description: 'Overhaul the corporate website to modern standards.',
-      color: '#4F46E5',
-      members: [
-        { user: admin._id, role: 'member' },
-        { user: manager._id, role: 'manager' },
-        { user: employee._id, role: 'member' }
+    const project1 = await prisma.project.create({
+      data: {
+        name: 'Website Redesign',
+        description: 'Overhaul the corporate website to modern standards.',
+        color: '#4F46E5',
+        createdById: admin.id,
+        managerId: manager.id
+      }
+    });
+
+    // Add members
+    await prisma.projectMember.createMany({
+      data: [
+        { projectId: project1.id, userId: admin.id, role: 'member' },
+        { projectId: project1.id, userId: manager.id, role: 'manager' },
+        { projectId: project1.id, userId: employee.id, role: 'member' }
       ]
     });
 
-    const project2 = await Project.create({
-      name: 'Mobile App MVP',
-      description: 'First version of the mobile app for iOS and Android.',
-      color: '#059669',
-      members: [
-        { user: manager._id, role: 'manager' },
-        { user: employee._id, role: 'member' }
+    const project2 = await prisma.project.create({
+      data: {
+        name: 'Mobile App MVP',
+        description: 'First version of the mobile app for iOS and Android.',
+        color: '#059669',
+        createdById: manager.id,
+        managerId: manager.id
+      }
+    });
+
+    await prisma.projectMember.createMany({
+      data: [
+        { projectId: project2.id, userId: manager.id, role: 'manager' },
+        { projectId: project2.id, userId: employee.id, role: 'member' }
       ]
     });
     console.log('Projects created');
 
     // Create Tasks
-    const tasksData = [
-      {
+    await prisma.task.create({
+      data: {
         title: 'Design Wireframes',
         description: 'Create initial wireframes for homepage.',
         status: 'done',
         priority: 'high',
-        assignedTo: employee._id,
-        project: project1._id,
+        assignedToId: employee.id,
+        projectId: project1.id,
         dueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-        createdBy: manager._id,
-        comments: [{ user: manager._id, text: 'Looks great!' }]
-      },
-      {
+        createdById: manager.id,
+        comments: {
+          create: [{ userId: manager.id, text: 'Looks great!' }]
+        }
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'Setup Database',
         description: 'Configure MongoDB collections.',
         status: 'todo',
         priority: 'critical',
-        assignedTo: manager._id,
-        project: project1._id,
+        assignedToId: manager.id,
+        projectId: project1.id,
         dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-        createdBy: admin._id
-      },
-      {
+        createdById: admin.id
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'Create Login API',
         description: 'JWT based login API endpoint.',
-        status: 'in-progress',
+        status: 'in_progress',
         priority: 'medium',
-        assignedTo: employee._id,
-        project: project2._id,
+        assignedToId: employee.id,
+        projectId: project2.id,
         dueDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // Overdue
-        createdBy: manager._id
-      },
-      {
+        createdById: manager.id
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'Setup CI/CD pipeline',
         description: 'GitHub actions setup.',
         status: 'review',
         priority: 'high',
-        assignedTo: manager._id,
-        project: project2._id,
+        assignedToId: manager.id,
+        projectId: project2.id,
         dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-        createdBy: admin._id,
-        comments: [{ user: employee._id, text: 'I fixed the build error.' }]
-      },
-      {
+        createdById: admin.id,
+        comments: {
+          create: [{ userId: employee.id, text: 'I fixed the build error.' }]
+        }
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'Write User Docs',
         description: 'Draft the initial onboarding manual.',
         status: 'todo',
         priority: 'low',
-        assignedTo: employee._id,
-        project: project1._id,
+        assignedToId: employee.id,
+        projectId: project1.id,
         dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
-        createdBy: manager._id
-      },
-      {
+        createdById: manager.id
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'Fix Navigation Bug',
-        description: 'Mobile menu doesn\'t open on Safari.',
-        status: 'in-progress',
+        description: "Mobile menu doesn't open on Safari.",
+        status: 'in_progress',
         priority: 'high',
-        assignedTo: employee._id,
-        project: project1._id,
+        assignedToId: employee.id,
+        projectId: project1.id,
         dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-        createdBy: manager._id
-      },
-      {
+        createdById: manager.id
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'App Icon Design',
         description: 'Design the launcher icon.',
         status: 'done',
         priority: 'medium',
-        assignedTo: employee._id,
-        project: project2._id,
+        assignedToId: employee.id,
+        projectId: project2.id,
         dueDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-        createdBy: manager._id
-      },
-      {
+        createdById: manager.id
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'Push Notifications Integration',
         description: 'Firebase integration for notifications.',
         status: 'review',
         priority: 'critical',
-        assignedTo: manager._id,
-        project: project2._id,
+        assignedToId: manager.id,
+        projectId: project2.id,
         dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-        createdBy: admin._id
-      },
-      {
+        createdById: admin.id
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'Update Terms of Service',
         description: 'Legal review required.',
         status: 'todo',
         priority: 'low',
-        assignedTo: manager._id,
-        project: project1._id,
+        assignedToId: manager.id,
+        projectId: project1.id,
         dueDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
-        createdBy: admin._id
-      },
-      {
+        createdById: admin.id
+      }
+    });
+
+    await prisma.task.create({
+      data: {
         title: 'Optimize Images',
         description: 'Run all assets through image compressor.',
-        status: 'in-progress',
+        status: 'in_progress',
         priority: 'low',
-        assignedTo: employee._id,
-        project: project1._id,
+        assignedToId: employee.id,
+        projectId: project1.id,
         dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // Overdue
-        createdBy: manager._id
+        createdById: manager.id
       }
-    ];
+    });
 
-    await Task.insertMany(tasksData);
     console.log('Tasks created');
-
-    console.log('Data Imported Successfully!');
-    process.exit();
+    console.log('PostgreSQL Data Seeded Successfully!');
+    process.exit(0);
   } catch (err) {
-    console.error(`Error: ${err.message}`);
+    console.error(`Error during seeding: ${err.message}`);
     process.exit(1);
   }
 };

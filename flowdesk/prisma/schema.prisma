@@ -1,0 +1,168 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  admin
+  manager
+  employee
+}
+
+enum ProjectRole {
+  admin
+  manager
+  member
+}
+
+enum ProjectStatus {
+  active
+  completed
+  on_hold @map("on-hold")
+}
+
+enum TaskStatus {
+  todo
+  in_progress @map("in-progress")
+  review
+  done
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  critical
+}
+
+enum NotificationType {
+  task_assigned @map("task-assigned")
+  comment_added @map("comment-added")
+  deadline_approaching @map("deadline-approaching")
+  project_update @map("project-update")
+}
+
+model User {
+  id           Int            @id @default(autoincrement())
+  name         String
+  email        String         @unique
+  password     String
+  role         Role           @default(employee)
+  avatar       String         @default("default-avatar.png")
+  department   String?
+  isActive     Boolean        @default(true)
+  lastSeen     DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relationships
+  managedProjects Project[]   @relation("ProjectManager")
+  createdProjects Project[]   @relation("ProjectCreator")
+  assignedTasks   Task[]      @relation("TaskAssignee")
+  createdTasks    Task[]      @relation("TaskCreator")
+  comments        Comment[]
+  notifications   Notification[]
+  projectMemberships ProjectMember[]
+
+  @@index([email])
+}
+
+model Project {
+  id          Int            @id @default(autoincrement())
+  name        String
+  description String?
+  managerId   Int?
+  manager     User?          @relation("ProjectManager", fields: [managerId], onDelete: SetNull, onUpdate: Cascade)
+  status      ProjectStatus  @default(active)
+  deadline    DateTime?
+  color       String         @default("#4F46E5")
+  createdById Int?
+  createdBy   User?          @relation("ProjectCreator", fields: [createdById], onDelete: SetNull, onUpdate: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relationships
+  members     ProjectMember[]
+  tasks       Task[]
+}
+
+model ProjectMember {
+  id        Int         @id @default(autoincrement())
+  projectId Int
+  project   Project     @relation(fields: [projectId], onDelete: Cascade)
+  userId    Int
+  user      User        @relation(fields: [userId], onDelete: Cascade)
+  role      ProjectRole @default(member)
+
+  @@unique([projectId, userId])
+}
+
+model Task {
+  id          Int          @id @default(autoincrement())
+  title       String
+  description String?
+  status      TaskStatus   @default(todo)
+  priority    TaskPriority @default(medium)
+  assignedToId Int?
+  assignedTo  User?        @relation("TaskAssignee", fields: [assignedToId], onDelete: SetNull, onUpdate: Cascade)
+  projectId   Int?
+  project     Project?     @relation(fields: [projectId], onDelete: Cascade, onUpdate: Cascade)
+  dueDate     DateTime?
+  tags        String[]
+  createdById Int?
+  createdBy   User?        @relation("TaskCreator", fields: [createdById], onDelete: SetNull, onUpdate: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relationships
+  attachments Attachment[]
+  comments    Comment[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([projectId])
+}
+
+model Attachment {
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  task         Task     @relation(fields: [taskId], onDelete: Cascade)
+  filename     String
+  originalName String
+  path         String
+  uploadedAt   DateTime @default(now())
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  user      User             @relation(fields: [userId], onDelete: Cascade)
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+}
+
+model Session {
+  sid    String   @id
+  sess   Json
+  expire DateTime
+
+  @@map("session")
+}

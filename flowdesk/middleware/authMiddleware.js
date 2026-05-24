@@ -1,6 +1,6 @@
 // Concept: Authentication middleware, Role-based access
 const jwtHelper = require('../utils/jwtHelper');
-const User = require('../models/User');
+const { prisma, mapIdToUnderscoreId } = require('../config/prisma');
 
 exports.requireAuth = (req, res, next) => {
   if (req.isAuthenticated()) {
@@ -31,12 +31,15 @@ exports.requireJWT = async (req, res, next) => {
     }
 
     const decoded = jwtHelper.verifyToken(token);
-    const user = await User.findById(decoded.id);
+    const rawUser = await prisma.user.findUnique({
+      where: { id: parseInt(decoded.id) }
+    });
 
-    if (!user) {
+    if (!rawUser) {
       return res.status(401).json({ error: 'User not found' });
     }
 
+    const user = mapIdToUnderscoreId(rawUser);
     req.user = user;
     next();
   } catch (err) {
