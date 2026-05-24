@@ -76,12 +76,12 @@ model Project {
   name        String
   description String?
   managerId   Int?
-  manager     User?          @relation("ProjectManager", fields: [managerId], onDelete: SetNull, onUpdate: Cascade)
+  manager     User?          @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   status      ProjectStatus  @default(active)
   deadline    DateTime?
   color       String         @default("#4F46E5")
   createdById Int?
-  createdBy   User?          @relation("ProjectCreator", fields: [createdById], onDelete: SetNull, onUpdate: Cascade)
+  createdBy   User?          @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -93,9 +93,9 @@ model Project {
 model ProjectMember {
   id        Int         @id @default(autoincrement())
   projectId Int
-  project   Project     @relation(fields: [projectId], onDelete: Cascade)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId    Int
-  user      User        @relation(fields: [userId], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   role      ProjectRole @default(member)
 
   @@unique([projectId, userId])
@@ -108,13 +108,13 @@ model Task {
   status      TaskStatus   @default(todo)
   priority    TaskPriority @default(medium)
   assignedToId Int?
-  assignedTo  User?        @relation("TaskAssignee", fields: [assignedToId], onDelete: SetNull, onUpdate: Cascade)
+  assignedTo  User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   projectId   Int?
-  project     Project?     @relation(fields: [projectId], onDelete: Cascade, onUpdate: Cascade)
+  project     Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   dueDate     DateTime?
   tags        String[]
   createdById Int?
-  createdBy   User?        @relation("TaskCreator", fields: [createdById], onDelete: SetNull, onUpdate: Cascade)
+  createdBy   User?        @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -131,7 +131,7 @@ model Task {
 model Attachment {
   id           Int      @id @default(autoincrement())
   taskId       Int
-  task         Task     @relation(fields: [taskId], onDelete: Cascade)
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   filename     String
   originalName String
   path         String
@@ -141,9 +141,9 @@ model Attachment {
 model Comment {
   id        Int      @id @default(autoincrement())
   taskId    Int
-  task      Task     @relation(fields: [taskId], onDelete: Cascade)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId    Int
-  user      User     @relation(fields: [userId], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   text      String
   createdAt DateTime @default(now())
 }
@@ -151,7 +151,7 @@ model Comment {
 model Notification {
   id        Int              @id @default(autoincrement())
   userId    Int
-  user      User             @relation(fields: [userId], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   message   String
   type      NotificationType
   isRead    Boolean          @default(false)
