@@ -524,6 +524,20 @@ a:hover {
   box-shadow: 0 0 0 3px rgba(168, 139, 250, 0.2);
 }
 
+.auth-page .form-control option {
+  background-color: #1C1B2E;
+  color: #FFF;
+}
+
+.auth-page .form-control:-webkit-autofill,
+.auth-page .form-control:-webkit-autofill:hover, 
+.auth-page .form-control:-webkit-autofill:focus, 
+.auth-page .form-control:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #1C1B2E inset !important;
+  -webkit-text-fill-color: white !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 .auth-page .form-control::placeholder {
   color: rgba(255, 255, 255, 0.35);
 }
