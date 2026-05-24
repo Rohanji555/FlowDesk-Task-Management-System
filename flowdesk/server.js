@@ -1,7 +1,7 @@
 // Concepts: HTTP module, Node.js fundamentals, Client-server architecture
 require('dotenv').config();
 const http = require('http');
-const mongoose = require('mongoose');
+const { prisma } = require('./config/prisma');
 const app = require('./app');
 const connectDB = require('./config/db');
 const initSocket = require('./config/socket');
@@ -43,11 +43,10 @@ process.on('unhandledRejection', (err) => {
 // Handle SIGTERM for graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM RECEIVED. Shutting down gracefully');
-  server.close(() => {
+  server.close(async () => {
     console.log('Process terminated!');
-    mongoose.connection.close(false, () => {
-      console.log('MongoDB connection closed.');
-      process.exit(0);
-    });
+    await prisma.$disconnect();
+    console.log('PostgreSQL connection closed.');
+    process.exit(0);
   });
 });
